@@ -9,13 +9,13 @@ output:
 # Reproducable Research - Peer review project 1
 
 ### Synopsis
-Analysis of weekend vs. weekday "quantified self" database from exercise tracking devices
+Analysis of weekend vs. weekday "quantified self" database from exercise tracking devices to determine if there is variation between weekday and weekend movement patterns.
 
 ### Exploritory analysis
 
 #### Loading and processing the raw data
 
-```{r fig.width=5, fig.height=3, dpi=144}
+```{r}
 
 ## Loading the raw dataset 
 rawData <- read.csv("activity.csv",colClasses=c("integer","character","integer"),stringsAsFactors=TRUE)
@@ -32,9 +32,11 @@ dateSteps<-c()
 for (date in dates){
   dateSteps<-c(dateSteps,sum(completeData$steps[completeData$date==as.character(date)]))
 }
-dailyMean<-mean(dateSteps)  ## calculating mean of daily total of steps
-dailyMedian<-median(dateSteps)  ## calculating median of daily total of steps
-hist(dateSteps,main="Histogram of Daily Step Totals",xlab="steps")
+dailyMean<-round(mean(dateSteps),3)  ## calculating mean of daily total of steps
+dailyMedian<-round(median(dateSteps),3)  ## calculating median of daily total of steps
+
+library("lattice")
+histogram(dateSteps,main="Raw Data Daily Step Totals",xlab="steps")
 
 intervals<-levels(factor(completeData$interval))
 intervalSteps<-c()
@@ -48,90 +50,105 @@ for (interval in intervals){
   }
   intervalSteps<-c(intervalSteps,aveStepsThisInterval)
 }
-plot(intervalSteps~intervals,type="l",main="Daily Steps Taken",ylab="Total Number of Steps Per Day",xlab="Interval")
 
 ```
 
-### Average daily activity pattern
-The mean of the daily total steps is :`r dailyMean` and the median of the daily total steps is :`r dailyMedian`.
+#### Raw Data Average daily activity pattern
+The mean of the daily total steps is :`r format(dailyMean,digits=7,big.mark=",")`.
+The median of the daily total steps is :`r format(dailyMedian,digits=7,big.mark=",")`.
 The interval with the hightest average number of steps is:`r maxInterval`.
 
-### Checking to see if there are visible differences in patterns with the omitted versus simulated values
-### The missing values are simulated using the average steps from the same day of the week as the missing data
+```{r}
 
-There are `r numberOfRowsWithMissingData` rows with missing data in `r numberOfRows` total rows. 
+plot(intervalSteps~intervals,type="l",main="Average Daily Activty Pattern",ylab="Total Number of Steps",xlab="Interval")
 
-```{r fig.width=4, fig.height=3, dpi=144}
+```
+
+#### Creating an analysis dataframe
+
+```{r}
 
 steps<-rawData$steps
 date<-ymd(rawData$date)
 day<-weekdays(date)
 interval<-rawData$interval
 ##Create a new variable indicating whether a given date is a weekday or weekend day.
-dayType<-ifelse((day=="Saturday")|(day=="Sunday"),1,0)
+dayType<-ifelse((day=="Saturday")|(day=="Sunday"),"Weekend","Weekday")
+
 fitData <- data.frame(steps,date,day,dayType,interval)  
 library("dplyr")
 fitData <- fitData %>%
-##  group_by(day) %>%
-  group_by(interval) %>% ## group by interval within a day of the week in order to get mean for missing information
+  group_by(dayType,interval) %>% ## replace missing values with average steps matching that day of the week & that interval
   mutate(steps=replace(steps,is.na(steps),mean(steps,na.rm=TRUE)))
 
-## Getting subtotals
-graphFrame<- fitData %>%   
-  group_by(interval,dayType) 
+```
 
-library(ggplot2)
-qplot(interval,steps,data=graphFrame,
-  color=dayType,geom="line",
-  main="Number of steps per time interval, weekend and weekday",
-  xlab="Interval",ylab="Average steps")
+#### Checking for differences in data between omitted versus & simulated values
 
-hist(dateSteps,main="Histogram of Daily Step Totals after missing values were inputted",xlab="Steps")
-simIntervalSteps<-c()
-for (interval in intervals){
-  simIntervalSteps<-c(simIntervalSteps,mean(fitData$steps[fitData$interval==interval],na.rm=T))
+The missing values are simulated using the average steps from the same day type category and time interval as the missing data
+
+In the raw dataset there are `r format(numberOfRowsWithMissingData,digits=7,big.mark=",")` rows 
+with missing data in `r format(numberOfRows,digits=7,big.mark=",")` total rows. Per interval the mean number of
+steps in this dataset is `r format(round(mean(rawData$steps,na.rm=TRUE),3),digits=6,big.mark=",")`
+, the median `r median(rawData$steps,na.rm=TRUE)`.
+
+```{r}
+
+## Creating a histogram of the fitted daily totals
+dates<-levels(factor(fitData$date))
+dateSteps<-c()
+for (date in dates){
+  dateSteps<-c(dateSteps,sum(fitData$steps[fitData$date==ymd(date)]))
 }
-par(mfrow=c(1,2))
-plot(intervalSteps~intervals,type="l",main="Raw Data",ylab="Total Number of Steps Per Day",xlab="Interval (s)")
-plot(simIntervalSteps~intervals,type="l",main="Simulated Data ",ylab="Total Number of Steps Per Day",xlab="Interval (s)"
-)
+
+## Getting mean, median, & maximum information for the fitted daily totals
+dailyMean<-round(mean(dateSteps),3)  ## calculating mean of daily total of steps
+dailyMedian<-round(median(dateSteps),3)  ## calculating median of daily total of steps
+
+intervals<-levels(factor(fitData$interval))
+intervalSteps<-c()
+maxInterval<-0
+maxIntervalAmount<-0
+for (interval in intervals){
+  aveStepsThisInterval<-mean(fitData$steps[fitData$interval==interval])
+  if (aveStepsThisInterval > maxIntervalAmount){
+    maxInterval<-interval
+    maxIntervalAmount<-aveStepsThisInterval
+  }
+  intervalSteps<-c(intervalSteps,aveStepsThisInterval)
+}
+
+```
+
+#### Fitted Data Average daily activity pattern
+The mean of the daily total steps is :`r format(dailyMean,digits=7,big.mark=",")`.
+The median of the daily total steps is :`r format(dailyMedian,digits=7,big.mark=",")`.
+The interval with the hightest average number of steps is:`r maxInterval`.
+
+```{r}
+
+histogram(dateSteps,main="Fitted Data Daily Step Totals",xlab="steps")
+
 summary(rawData$steps)
 summary(fitData$steps)
 
-library(ggplot2)
-qplot(interval,steps,data=rawData,
-  color=dayType,geom="line",
-  main="Raw Number of steps per time interval, weekend and weekday",
-  xlab="Interval",ylab="Average steps")
-
-qplot(interval,steps,data=fitData,
-  color=dayType,geom="line",
-  main="Estimated number of steps per time interval, weekend and weekday",
-  xlab="Interval",ylab="Average steps")
-
-library(lattice)
-##xyplot(steps|dayType,data=fitData,main="Estimated number of steps per 5 minute time interval, weekend & weekday")
-
 ```
 
-Neither the histogram, nor the time series graphs does not show large differences between the graph with the omitted values versus the graphs with the simulated values.  The summary report indicates an increase in the value of the 3rd Quantile.
+Neither the histogram, nor the time series graphs does not show large differences between the histogram graph with the omitted values versus the graphs with the simulated values.  The summary report indicates an increase in the value of the 3rd Quantile.
 
+## Comparing weekday and weekend activity patterns
 
 ####Plot containing a time series plot (i.e.  type = "l" ) of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). 
-This does not show a difference between weekday and weekend activity.
 
-```{r fig.width=4, fig.height=3, dpi=144}
-
-xyplot(x~y,
-       data=fitData,
-       type="l",
-       groups=dayType,
-       main="Daily Steps Taken",ylab="Total Number of Steps Per Day",xlab="Interval")
-
-qplot(interval,steps,data=fitData,
-  color=dayType,
-  geom="line",
-  main="Number of steps per time interval, weekend and weekday",
+```{r fig.width=5, fig.height=4}
+fitDataTotals<-aggregate(steps~interval+dayType,data=fitData,mean,na.rm=TRUE)
+library(ggplot2)
+qplot(interval,steps,data=fitDataTotals,
+  color=dayType,geom="line",
+  main="Average Total Steps using Fitted Data",
   xlab="Interval",ylab="Average steps")
 
 ```
+
+This graphs suggests greater activity during the mornings of the weekdays, and a greater amount of afternoon & evening activity during the weekends.
+

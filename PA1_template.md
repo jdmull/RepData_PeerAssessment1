@@ -1,7 +1,7 @@
 # Reproducable Research - Peer review project 1
 
 ### Synopsis
-Analysis of weekend vs. weekday "quantified self" database from exercise tracking devices
+Analysis of weekend vs. weekday "quantified self" database from exercise tracking devices to determine if there is variation between weekday and weekend movement patterns.
 
 ### Exploritory analysis
 
@@ -24,9 +24,11 @@ dateSteps<-c()
 for (date in dates){
   dateSteps<-c(dateSteps,sum(completeData$steps[completeData$date==as.character(date)]))
 }
-dailyMean<-mean(dateSteps)  ## calculating mean of daily total of steps
-dailyMedian<-median(dateSteps)  ## calculating median of daily total of steps
-hist(dateSteps,main="Histogram of Daily Step Totals",xlab="steps")
+dailyMean<-round(mean(dateSteps),3)  ## calculating mean of daily total of steps
+dailyMedian<-round(median(dateSteps),3)  ## calculating median of daily total of steps
+
+library("lattice")
+histogram(dateSteps,main="Raw Data Daily Step Totals",xlab="steps")
 ```
 
 ![](PA1_template_files/figure-html/unnamed-chunk-1-1.png) 
@@ -44,19 +46,21 @@ for (interval in intervals){
   }
   intervalSteps<-c(intervalSteps,aveStepsThisInterval)
 }
-plot(intervalSteps~intervals,type="l",main="Daily Steps Taken",ylab="Total Number of Steps Per Day",xlab="Interval")
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-1-2.png) 
-
-### Average daily activity pattern
-The mean of the daily total steps is :1.0766189\times 10^{4} and the median of the daily total steps is :10765.
+#### Raw Data Average daily activity pattern
+The mean of the daily total steps is :10,766.19.
+The median of the daily total steps is :10,765.
 The interval with the hightest average number of steps is:835.
 
-### Checking to see if there are visible differences in patterns with the omitted versus simulated values
-### The missing values are simulated using the average steps from the same day of the week as the missing data
 
-There are 2304 rows with missing data in 17568 total rows. 
+```r
+plot(intervalSteps~intervals,type="l",main="Average Daily Activty Pattern",ylab="Total Number of Steps",xlab="Interval")
+```
+
+![](PA1_template_files/figure-html/unnamed-chunk-2-1.png) 
+
+#### Creating an analysis dataframe
 
 
 ```r
@@ -65,7 +69,8 @@ date<-ymd(rawData$date)
 day<-weekdays(date)
 interval<-rawData$interval
 ##Create a new variable indicating whether a given date is a weekday or weekend day.
-dayType<-ifelse((day=="Saturday")|(day=="Sunday"),1,0)
+dayType<-ifelse((day=="Saturday")|(day=="Sunday"),"Weekend","Weekday")
+
 fitData <- data.frame(steps,date,day,dayType,interval)  
 library("dplyr")
 ```
@@ -89,41 +94,57 @@ library("dplyr")
 
 ```r
 fitData <- fitData %>%
-##  group_by(day) %>%
-  group_by(interval) %>% ## group by interval within a day of the week in order to get mean for missing information
+  group_by(dayType,interval) %>% ## replace missing values with average steps matching that day of the week & that interval
   mutate(steps=replace(steps,is.na(steps),mean(steps,na.rm=TRUE)))
-
-## Getting subtotals
-graphFrame<- fitData %>%   
-  group_by(interval,dayType) 
-
-library(ggplot2)
-qplot(interval,steps,data=graphFrame,
-  color=dayType,geom="line",
-  main="Number of steps per time interval, weekend and weekday",
-  xlab="Interval",ylab="Average steps")
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-2-1.png) 
+#### Checking for differences in data between omitted versus & simulated values
+
+The missing values are simulated using the average steps from the same day type category and time interval as the missing data
+
+In the raw dataset there are 2,304 rows 
+with missing data in 17,568 total rows. Per interval the mean number of
+steps in this dataset is 37.383
+, the median 0.
+
 
 ```r
-hist(dateSteps,main="Histogram of Daily Step Totals after missing values were inputted",xlab="Steps")
-```
-
-![](PA1_template_files/figure-html/unnamed-chunk-2-2.png) 
-
-```r
-simIntervalSteps<-c()
-for (interval in intervals){
-  simIntervalSteps<-c(simIntervalSteps,mean(fitData$steps[fitData$interval==interval],na.rm=T))
+## Creating a histogram of the fitted daily totals
+dates<-levels(factor(fitData$date))
+dateSteps<-c()
+for (date in dates){
+  dateSteps<-c(dateSteps,sum(fitData$steps[fitData$date==ymd(date)]))
 }
-par(mfrow=c(1,2))
-plot(intervalSteps~intervals,type="l",main="Raw Data",ylab="Total Number of Steps Per Day",xlab="Interval (s)")
-plot(simIntervalSteps~intervals,type="l",main="Simulated Data ",ylab="Total Number of Steps Per Day",xlab="Interval (s)"
-)
+
+## Getting mean, median, & maximum information for the fitted daily totals
+dailyMean<-round(mean(dateSteps),3)  ## calculating mean of daily total of steps
+dailyMedian<-round(median(dateSteps),3)  ## calculating median of daily total of steps
+
+intervals<-levels(factor(fitData$interval))
+intervalSteps<-c()
+maxInterval<-0
+maxIntervalAmount<-0
+for (interval in intervals){
+  aveStepsThisInterval<-mean(fitData$steps[fitData$interval==interval])
+  if (aveStepsThisInterval > maxIntervalAmount){
+    maxInterval<-interval
+    maxIntervalAmount<-aveStepsThisInterval
+  }
+  intervalSteps<-c(intervalSteps,aveStepsThisInterval)
+}
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-2-3.png) 
+#### Fitted Data Average daily activity pattern
+The mean of the daily total steps is :10,762.05.
+The median of the daily total steps is :10,571.
+The interval with the hightest average number of steps is:835.
+
+
+```r
+histogram(dateSteps,main="Fitted Data Daily Step Totals",xlab="steps")
+```
+
+![](PA1_template_files/figure-html/unnamed-chunk-5-1.png) 
 
 ```r
 summary(rawData$steps)
@@ -140,60 +161,26 @@ summary(fitData$steps)
 
 ```
 ##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-##    0.00    0.00    0.00   37.38   27.00  806.00
+##    0.00    0.00    0.00   37.37   24.00  806.00
 ```
 
-```r
-library(ggplot2)
-qplot(interval,steps,data=rawData,
-  color=dayType,geom="line",
-  main="Raw Number of steps per time interval, weekend and weekday",
-  xlab="Interval",ylab="Average steps")
-```
+Neither the histogram, nor the time series graphs does not show large differences between the histogram graph with the omitted values versus the graphs with the simulated values.  The summary report indicates an increase in the value of the 3rd Quantile.
 
-```
-## Warning: Removed 2 rows containing missing values (geom_path).
-```
-
-![](PA1_template_files/figure-html/unnamed-chunk-2-4.png) 
-
-```r
-qplot(interval,steps,data=fitData,
-  color=dayType,geom="line",
-  main="Estimated number of steps per time interval, weekend and weekday",
-  xlab="Interval",ylab="Average steps")
-```
-
-![](PA1_template_files/figure-html/unnamed-chunk-2-5.png) 
-
-```r
-library(lattice)
-##xyplot(steps|dayType,data=fitData,main="Estimated number of steps per 5 minute time interval, weekend & weekday")
-```
-
-Neither the histogram, nor the time series graphs does not show large differences between the graph with the omitted values versus the graphs with the simulated values.  The summary report indicates an increase in the value of the 3rd Quantile.
-
+## Comparing weekday and weekend activity patterns
 
 ####Plot containing a time series plot (i.e.  type = "l" ) of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). 
-This does not show a difference between weekday and weekend activity.
 
 
 ```r
-xyplot(x~y,
-       data=fitData,
-       type="l",
-       groups=dayType,
-       main="Daily Steps Taken",ylab="Total Number of Steps Per Day",xlab="Interval")
-```
-
-![](PA1_template_files/figure-html/unnamed-chunk-3-1.png) 
-
-```r
-qplot(interval,steps,data=fitData,
-  color=dayType,
-  geom="line",
-  main="Number of steps per time interval, weekend and weekday",
+fitDataTotals<-aggregate(steps~interval+dayType,data=fitData,mean,na.rm=TRUE)
+library(ggplot2)
+qplot(interval,steps,data=fitDataTotals,
+  color=dayType,geom="line",
+  main="Average Total Steps using Fitted Data",
   xlab="Interval",ylab="Average steps")
 ```
 
-![](PA1_template_files/figure-html/unnamed-chunk-3-2.png) 
+![](PA1_template_files/figure-html/unnamed-chunk-6-1.png) 
+
+This graphs suggests greater activity during the mornings of the weekdays, and a greater amount of afternoon & evening activity during the weekends.
+
